@@ -10,6 +10,8 @@ jobs:
   contracts:
     name: Soroban Contract Tests
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
 
@@ -34,6 +36,26 @@ jobs:
       - name: Build WASM artifacts
         working-directory: contracts
         run: cargo build --target wasm32-unknown-unknown --release --workspace
+
+      - name: Report WASM sizes
+        if: github.event_name == 'pull_request'
+        working-directory: contracts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          REPORT="## 📦 WASM Size Report\n\n| Contract | Size |\n|---|---|\n"
+          for wasm in target/wasm32-unknown-unknown/release/*.wasm; do
+            name=$(basename "$wasm" .wasm)
+            size=$(du -sh "$wasm" | cut -f1)
+            bytes=$(wc -c < "$wasm")
+            REPORT="${REPORT}| \`${name}\` | ${size} (${bytes} bytes) |\n"
+          done
+          REPORT="${REPORT}\n> Built from commit \`${{ github.sha }}\`"
+          gh api repos/${REPO}/issues/${PR_NUMBER}/comments \
+            --method POST \
+            --field body="$(printf '%b' "$REPORT")"
 
   backend:
     name: NestJS Backend
