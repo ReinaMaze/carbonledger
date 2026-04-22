@@ -1,36 +1,73 @@
 # CarbonLedger Stellar.toml
 # SEP-0001 compliant — https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0001.md
+# Closes #86
 #
-# ── HOW TO UPDATE ─────────────────────────────────────────────────────────────
-# 1. Edit this file.
-# 2. Deploy to https://carbonledger.io/.well-known/stellar.toml (HTTPS required).
-# 3. Verify with: https://stellar.expert/explorer/testnet/account/<ISSUER_KEY>
-#    or the SDF validator: https://www.stellar.org/laboratory/#txsigner
-# 4. Confirm CORS header: Access-Control-Allow-Origin: *
+# ── FIELD DOCUMENTATION ───────────────────────────────────────────────────────
+# Every field in this file is documented inline below with:
+#   • Whether it is required or optional per SEP-0001
+#   • What the field is used for
+#   • An example value where helpful
+# Developers integrating with CarbonLedger via SEP standards should read the
+# inline comments alongside the SEP-0001 specification linked above.
+#
+# ── UPDATE PROCEDURE ──────────────────────────────────────────────────────────
+# Follow these steps every time this file changes:
+#
+# 1. Edit this file in the repository (carbonledger/Stellar.toml).
+# 2. Increment VERSION (semantic versioning — patch for minor edits,
+#    minor for new fields, major for breaking changes).
+# 3. Open a pull request. CI will lint the TOML syntax automatically.
+# 4. After merge, deploy the updated file to:
+#      https://carbonledger.io/.well-known/stellar.toml
+#    The file MUST be served over HTTPS. HTTP is rejected by all SEP clients.
+# 5. Confirm the CORS header is present on the response:
+#      Access-Control-Allow-Origin: *
+#    Without this header, browser-based wallets cannot fetch the file.
+# 6. Validate the deployed file with the tools listed in the VALIDATION TOOLS
+#    section below. Fix any reported errors before announcing the change.
+# 7. Notify integrators (exchanges, wallets) if SIGNING_KEY, ACCOUNTS, or any
+#    [[CURRENCIES]] issuer key changed — those changes affect asset trust lines.
 #
 # ── VALIDATION TOOLS ──────────────────────────────────────────────────────────
-# • SDF Anchor Validator: https://anchor-validator.stellar.org
-# • Stellar Expert:       https://stellar.expert
-# • SEP-0001 spec:        https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0001.md
+# Use these tools to validate the file after every deployment:
+#
+# • SDF Anchor Validator (checks SEP-0001 + SEP-0010 compliance):
+#     https://anchor-validator.stellar.org
+#   Enter your domain (carbonledger.io) and run the full suite.
+#
+# • Stellar Expert (live account + asset explorer):
+#     https://stellar.expert/explorer/testnet/account/<ISSUER_KEY>
+#   Replace <ISSUER_KEY> with the actual issuer public key to verify
+#   that the CBON asset is visible and the toml link resolves correctly.
+#
+# • SDF Laboratory (manual transaction inspection and signing):
+#     https://laboratory.stellar.org
+#
+# • SEP-0001 specification (authoritative field reference):
+#     https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0001.md
 #
 # ── SEP-0001 COMPLIANCE CHECKLIST ─────────────────────────────────────────────
+# Run through this checklist before every production deployment:
+#
 # [x] File served at /.well-known/stellar.toml over HTTPS
-# [x] CORS header: Access-Control-Allow-Origin: *
-# [x] VERSION field present
-# [x] NETWORK_PASSPHRASE matches deployment network
-# [x] SIGNING_KEY is a valid Stellar public key (G...)
-# [x] ACCOUNTS lists all issuer public keys
-# [x] [DOCUMENTATION] section complete
-# [x] [[PRINCIPALS]] lists at least one contact
-# [x] [[CURRENCIES]] entry for every issued asset
+# [x] CORS header present: Access-Control-Allow-Origin: *
+# [x] VERSION field present and incremented
+# [x] NETWORK_PASSPHRASE exactly matches the target network
+# [x] SIGNING_KEY is a valid G... public key (not an issuer key)
+# [x] ACCOUNTS lists every issuer public key
+# [x] [DOCUMENTATION] section complete with ORG_NAME, ORG_URL, ORG_OFFICIAL_EMAIL
+# [x] [[PRINCIPALS]] has at least one entry with name + email
+# [x] [[CURRENCIES]] entry exists for every issued asset (CBON)
 # [x] code + issuer present on every [[CURRENCIES]] entry
-# [x] [[VALIDATORS]] entry if operating a validator node
+# [x] [[VALIDATORS]] entry present if operating a validator node
+# [x] Validated with SDF Anchor Validator (no errors)
 # ──────────────────────────────────────────────────────────────────────────────
 
 # VERSION (required)
 # Semantic version of this stellar.toml file. Increment on every change so
 # wallets and integrators can detect updates.
-VERSION = "2.0.0"
+# Example: "1.0.0" → "1.0.1" for a comment fix, "1.1.0" for a new field.
+VERSION = "2.1.0"
 
 # NETWORK_PASSPHRASE (required)
 # Must exactly match the network this deployment targets.
