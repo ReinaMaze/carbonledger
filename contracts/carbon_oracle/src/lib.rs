@@ -93,8 +93,28 @@ impl CarbonOracleContract {
         env.storage().persistent().set(&DataKey::OracleAddress, &oracle_address);
     }
 
+    /// Rotate the registered oracle address. Admin-only.
+    ///
+    /// # Errors
+    /// - [`CarbonError::UnauthorizedVerifier`] if caller is not the admin.
+    pub fn rotate_oracle(
+        env: Env,
+        admin: Address,
+        new_oracle: Address,
+    ) -> Result<(), CarbonError> {
+        admin.require_auth();
+        Self::require_admin(&env, &admin)?;
+
+        env.storage().persistent().set(&DataKey::OracleAddress, &new_oracle);
+
+        env.events().publish(
+            (symbol_short!("c_ledger"), symbol_short!("ora_rot")),
+            (admin, new_oracle),
+        );
+        Ok(())
+    }
+
     /// Authorised oracle submits satellite-verified monitoring data for a project period.
-    /// Methodology score below 70 triggers an on-chain warning event.
     ///
     /// # Parameters
     /// - `oracle_signer`: The oracle's address authorizing the submission
@@ -298,7 +318,6 @@ impl CarbonOracleContract {
             &DataKey::MonitoringData(project_id.clone(), period.clone()),
             &data,
         );
-        // Track latest submission timestamp for freshness checks
         env.storage().persistent().set(&DataKey::LatestMonitoring(project_id.clone()), &now);
 
         if methodology_score < 70 {
@@ -402,8 +421,7 @@ impl CarbonOracleContract {
             .ok_or(CarbonError::PriceNotSet)
     }
 
-    /// Flag a project for investigation. Emits an on-chain event that halts
-    /// new credit issuance until the flag is resolved.
+    /// Flag a project for investigation.
     ///
     /// # Parameters
     /// - `oracle_signer`: The oracle's address authorizing the flag
@@ -423,11 +441,9 @@ impl CarbonOracleContract {
         project_id: String,
         reason: String,
     ) -> Result<(), CarbonError> {
-        // ── checks ────────────────────────────────────────────────────────────
         oracle_signer.require_auth();
         Self::require_oracle(&env, &oracle_signer)?;
 
-        // ── effects ───────────────────────────────────────────────────────────
         env.storage().persistent().set(&DataKey::FlaggedProject(project_id.clone()), &reason);
 
         env.events().publish(
@@ -545,6 +561,58 @@ mod tests {
             &85_u32,
             &s(&env, "QmSatCID"),
         );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_unauthorized_price_update_rejected() {
+        let env = Env::default();
+        let (client, _, _) = setup(&env);
+        let rogue = Address::generate(&env);
+
+        let result = client.try_update_credit_price(&rogue, &s(&env, "VCS"), &2023_u32, &15_0000000_i128);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_rotate_oracle_admin_only() {
+        let env = Env::default();
+        let (client, admin, old_oracle) = setup(&env);
+        let new_oracle = Address::generate(&env);
+
+        // Admin can rotate
+        client.rotate_oracle(&admin, &new_oracle).unwrap();
+
+        // Old oracle is now rejected
+        let result = client.try_submit_monitoring_data(
+            &old_oracle,
+            &s(&env, "proj-001"),
+            &s(&env, "2023-Q1"),
+            &1000_i128,
+            &80_u32,
+            &s(&env, "QmCID"),
+        );
+        assert!(result.is_err());
+
+        // New oracle is accepted
+        client.submit_monitoring_data(
+            &new_oracle,
+            &s(&env, "proj-001"),
+            &s(&env, "2023-Q1"),
+            &1000_i128,
+            &80_u32,
+            &s(&env, "QmCID"),
+        ).unwrap();
+    }
+
+    #[test]
+    fn test_rotate_oracle_non_admin_rejected() {
+        let env = Env::default();
+        let (client, _, _) = setup(&env);
+        let attacker   = Address::generate(&env);
+        let new_oracle = Address::generate(&env);
+
+        let result = client.try_rotate_oracle(&attacker, &new_oracle);
         assert!(result.is_err());
     }
 
