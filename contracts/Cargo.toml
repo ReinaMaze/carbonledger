@@ -1,8 +1,6 @@
 [workspace]
 members = [
     "carbon_registry",
-    "carbon_registry_v1",
-    "carbon_registry_v2",
     "carbon_credit",
     "carbon_marketplace",
     "carbon_oracle",
