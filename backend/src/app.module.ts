@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { Module, Controller, Get } from "@nestjs/common";
 import { BullModule } from "@nestjs/bullmq";
 import { AuthModule } from "./auth/auth.module";
 import { ProjectsModule } from "./projects/projects.module";
@@ -13,6 +13,8 @@ import { PrismaService } from "./prisma.service";
 
 @Controller("health")
 class HealthController {
+  constructor(private readonly prisma: PrismaService) {}
+
   @Get()
   check() {
     return {
@@ -20,6 +22,11 @@ class HealthController {
       stellar_network: process.env.STELLAR_NETWORK || "testnet",
       timestamp: new Date().toISOString(),
     };
+  }
+
+  @Get("pool")
+  pool() {
+    return this.prisma.getPoolMetrics();
   }
 }
 
