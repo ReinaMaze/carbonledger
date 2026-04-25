@@ -752,3 +752,280 @@ mod tests {
         assert!(result.is_err());
     }
 }
+
+// ── Property-based fuzz tests ─────────────────────────────────────────────────
+
+#[cfg(test)]
+mod fuzz {
+    use super::*;
+    use proptest::prelude::*;
+    use soroban_sdk::{testutils::Address as _, Env, String};
+
+    fn s(env: &Env, v: &str) -> String { String::from_str(env, v) }
+
+    /// Set up a fresh contract instance with admin and registry.
+    fn setup() -> (Env, CarbonCreditContractClient<'static>, Address) {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin    = Address::generate(&env);
+        let registry = Address::generate(&env);
+        let id = env.register_contract(None, CarbonCreditContract);
+        // SAFETY: the Env outlives the client within each proptest case.
+        let env: &'static Env = Box::leak(Box::new(env));
+        let client = CarbonCreditContractClient::new(env, &id);
+        client.initialize(&admin, &registry).unwrap();
+        (env.clone(), client, admin)
+    }
+
+    // ── mint_credits ──────────────────────────────────────────────────────────
+
+    proptest! {
+        /// Any amount ≤ 0 must return ZeroAmountNotAllowed — never panic.
+        #[test]
+        fn fuzz_mint_zero_or_negative_amount(amount in i128::MIN..=0_i128) {
+            let (env, client, admin) = setup();
+            let owner = Address::generate(&env);
+            let result = client.try_mint_credits(
+                &admin,
+                &s(&env, "proj-fuzz"),
+                &amount,
+                &2023_u32,
+                &s(&env, "batch-fuzz"),
+                &1_u64,
+                &100_u64,
+                &s(&env, "cid"),
+                &owner,
+            );
+            prop_assert!(result.is_err());
+        }
+
+        /// serial_end < serial_start must return InvalidSerialRange — never panic.
+        #[test]
+        fn fuzz_mint_inverted_serial_range(
+            start in 1_u64..u64::MAX,
+            delta in 1_u64..1_000_000_u64,
+        ) {
+            let end = start.saturating_sub(delta);
+            let (env, client, admin) = setup();
+            let owner = Address::generate(&env);
+            let result = client.try_mint_credits(
+                &admin,
+                &s(&env, "proj-fuzz"),
+                &100_i128,
+                &2023_u32,
+                &s(&env, "batch-fuzz"),
+                &start,
+                &end,
+                &s(&env, "cid"),
+                &owner,
+            );
+            prop_assert!(result.is_err());
+        }
+
+        /// vintage_year outside [2000, 2100] must return InvalidVintageYear — never panic.
+        #[test]
+        fn fuzz_mint_invalid_vintage_year(year in prop_oneof![
+            0_u32..2000_u32,
+            2101_u32..u32::MAX,
+        ]) {
+            let (env, client, admin) = setup();
+            let owner = Address::generate(&env);
+            let result = client.try_mint_credits(
+                &admin,
+                &s(&env, "proj-fuzz"),
+                &100_i128,
+                &year,
+                &s(&env, "batch-fuzz"),
+                &1_u64,
+                &100_u64,
+                &s(&env, "cid"),
+                &owner,
+            );
+            prop_assert!(result.is_err());
+        }
+
+        /// Valid inputs must always succeed and produce a retrievable batch.
+        #[test]
+        fn fuzz_mint_valid_inputs_succeed(
+            amount in 1_i128..1_000_000_i128,
+            serial_start in 1_u64..500_000_u64,
+            serial_len in 1_u64..500_000_u64,
+            vintage_year in 2000_u32..=2100_u32,
+        ) {
+            let serial_end = serial_start.saturating_add(serial_len - 1);
+            let (env, client, admin) = setup();
+            let owner = Address::generate(&env);
+            let result = client.try_mint_credits(
+                &admin,
+                &s(&env, "proj-fuzz"),
+                &amount,
+                &vintage_year,
+                &s(&env, "batch-fuzz"),
+                &serial_start,
+                &serial_end,
+                &s(&env, "cid"),
+                &owner,
+            );
+            prop_assert!(result.is_ok(), "unexpected error: {:?}", result.err());
+            let batch = client.get_credit_batch(&s(&env, "batch-fuzz")).unwrap();
+            prop_assert_eq!(batch.amount, amount);
+            prop_assert_eq!(batch.owner, owner);
+        }
+
+        /// Duplicate batch_id must always be rejected — never panic.
+        #[test]
+        fn fuzz_mint_duplicate_batch_id_rejected(
+            amount in 1_i128..1_000_i128,
+        ) {
+            let (env, client, admin) = setup();
+            let owner = Address::generate(&env);
+            client.mint_credits(
+                &admin, &s(&env, "proj-fuzz"), &amount, &2023_u32,
+                &s(&env, "batch-dup"), &1_u64, &100_u64, &s(&env, "cid"), &owner,
+            ).unwrap();
+            // Second mint with same batch_id must fail
+            let result = client.try_mint_credits(
+                &admin, &s(&env, "proj-fuzz"), &amount, &2023_u32,
+                &s(&env, "batch-dup"), &200_u64, &300_u64, &s(&env, "cid"), &owner,
+            );
+            prop_assert!(result.is_err());
+        }
+
+        /// Overlapping serial ranges must always be rejected — never panic.
+        #[test]
+        fn fuzz_mint_overlapping_serials_rejected(
+            overlap_start in 1_u64..50_u64,
+            overlap_end in 51_u64..200_u64,
+        ) {
+            let (env, client, admin) = setup();
+            let owner = Address::generate(&env);
+            // Mint [1, 100]
+            client.mint_credits(
+                &admin, &s(&env, "proj-fuzz"), &100_i128, &2023_u32,
+                &s(&env, "batch-a"), &1_u64, &100_u64, &s(&env, "cid"), &owner,
+            ).unwrap();
+            // Any range that overlaps [1, 100] must fail
+            let result = client.try_mint_credits(
+                &admin, &s(&env, "proj-fuzz"), &100_i128, &2023_u32,
+                &s(&env, "batch-b"), &overlap_start, &overlap_end, &s(&env, "cid"), &owner,
+            );
+            prop_assert!(result.is_err());
+        }
+    }
+
+    // ── retire_credits ────────────────────────────────────────────────────────
+
+    proptest! {
+        /// Retiring more than available must return InsufficientCredits — never panic.
+        #[test]
+        fn fuzz_retire_exceeds_available(excess in 1_i128..1_000_000_i128) {
+            let (env, client, admin) = setup();
+            let owner = Address::generate(&env);
+            client.mint_credits(
+                &admin, &s(&env, "proj-fuzz"), &100_i128, &2023_u32,
+                &s(&env, "batch-fuzz"), &1_u64, &100_u64, &s(&env, "cid"), &owner,
+            ).unwrap();
+            let over_amount = 100_i128 + excess;
+            let result = client.try_retire_credits(
+                &owner,
+                &s(&env, "batch-fuzz"),
+                &over_amount,
+                &s(&env, "reason"),
+                &s(&env, "Corp"),
+                &s(&env, "ret-001"),
+                &s(&env, "tx"),
+            );
+            prop_assert!(result.is_err());
+        }
+
+        /// Retiring zero or negative must return ZeroAmountNotAllowed — never panic.
+        #[test]
+        fn fuzz_retire_zero_or_negative(amount in i128::MIN..=0_i128) {
+            let (env, client, admin) = setup();
+            let owner = Address::generate(&env);
+            client.mint_credits(
+                &admin, &s(&env, "proj-fuzz"), &100_i128, &2023_u32,
+                &s(&env, "batch-fuzz"), &1_u64, &100_u64, &s(&env, "cid"), &owner,
+            ).unwrap();
+            let result = client.try_retire_credits(
+                &owner,
+                &s(&env, "batch-fuzz"),
+                &amount,
+                &s(&env, "reason"),
+                &s(&env, "Corp"),
+                &s(&env, "ret-001"),
+                &s(&env, "tx"),
+            );
+            prop_assert!(result.is_err());
+        }
+
+        /// Retiring a non-existent batch must return an error — never panic.
+        #[test]
+        fn fuzz_retire_nonexistent_batch(batch_suffix in "[a-z]{1,8}") {
+            let (env, client, _admin) = setup();
+            let holder = Address::generate(&env);
+            let batch_id = format!("no-such-{}", batch_suffix);
+            let result = client.try_retire_credits(
+                &holder,
+                &s(&env, &batch_id),
+                &10_i128,
+                &s(&env, "reason"),
+                &s(&env, "Corp"),
+                &s(&env, "ret-001"),
+                &s(&env, "tx"),
+            );
+            prop_assert!(result.is_err());
+        }
+
+        /// Valid partial retirements must succeed and leave batch PartiallyRetired.
+        #[test]
+        fn fuzz_retire_partial_valid(
+            total in 2_i128..10_000_i128,
+            retire_frac in 1_u32..99_u32,  // percentage 1–98
+        ) {
+            let retire_amount = (total * retire_frac as i128 / 100).max(1).min(total - 1);
+            let (env, client, admin) = setup();
+            let owner = Address::generate(&env);
+            client.mint_credits(
+                &admin, &s(&env, "proj-fuzz"), &total, &2023_u32,
+                &s(&env, "batch-fuzz"), &1_u64, &(total as u64), &s(&env, "cid"), &owner,
+            ).unwrap();
+            let cert = client.retire_credits(
+                &owner,
+                &s(&env, "batch-fuzz"),
+                &retire_amount,
+                &s(&env, "reason"),
+                &s(&env, "Corp"),
+                &s(&env, "ret-001"),
+                &s(&env, "tx"),
+            ).unwrap();
+            prop_assert_eq!(cert.amount, retire_amount);
+            let batch = client.get_credit_batch(&s(&env, "batch-fuzz")).unwrap();
+            prop_assert_eq!(batch.status, CreditStatus::PartiallyRetired);
+        }
+
+        /// Full retirement followed by any further retirement must fail — never panic.
+        #[test]
+        fn fuzz_retire_after_full_retirement_fails(
+            second_amount in 1_i128..1_000_i128,
+        ) {
+            let (env, client, admin) = setup();
+            let owner = Address::generate(&env);
+            client.mint_credits(
+                &admin, &s(&env, "proj-fuzz"), &100_i128, &2023_u32,
+                &s(&env, "batch-fuzz"), &1_u64, &100_u64, &s(&env, "cid"), &owner,
+            ).unwrap();
+            // Fully retire
+            client.retire_credits(
+                &owner, &s(&env, "batch-fuzz"), &100_i128,
+                &s(&env, "reason"), &s(&env, "Corp"), &s(&env, "ret-001"), &s(&env, "tx"),
+            ).unwrap();
+            // Any further retirement must fail
+            let result = client.try_retire_credits(
+                &owner, &s(&env, "batch-fuzz"), &second_amount,
+                &s(&env, "reason"), &s(&env, "Corp"), &s(&env, "ret-002"), &s(&env, "tx2"),
+            );
+            prop_assert!(result.is_err());
+        }
+    }
+}
