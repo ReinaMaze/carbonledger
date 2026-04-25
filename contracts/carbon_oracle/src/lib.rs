@@ -31,6 +31,7 @@ pub enum CarbonError {
     ProjectAlreadyExists   = 17,
     InvalidSerialRange     = 18,
     AlreadyInitialized     = 19,
+    Arithmetic             = 20,
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -507,7 +508,7 @@ mod tests {
         let oracle = Address::generate(env);
         let id     = env.register_contract(None, CarbonOracleContract);
         let client = CarbonOracleContractClient::new(env, &id);
-        client.initialize(&admin, &oracle).unwrap();
+        client.initialize(&admin, &oracle);
         (client, admin, oracle)
     }
 
@@ -523,9 +524,9 @@ mod tests {
             &5000_i128,
             &85_u32,
             &s(&env, "QmSatCID"),
-        ).unwrap();
+        );
 
-        let data = client.get_monitoring_data(&s(&env, "proj-001"), &s(&env, "2023-Q1")).unwrap();
+        let data = client.get_monitoring_data(&s(&env, "proj-001"), &s(&env, "2023-Q1"));
         assert_eq!(data.tonnes_verified, 5000);
         assert_eq!(data.methodology_score, 85);
     }
@@ -552,8 +553,8 @@ mod tests {
         let env = Env::default();
         let (client, _, oracle) = setup(&env);
 
-        client.update_credit_price(&oracle, &s(&env, "VCS"), &2023_u32, &15_0000000_i128).unwrap();
-        let price = client.get_benchmark_price(&s(&env, "VCS"), &2023_u32).unwrap();
+        client.update_credit_price(&oracle, &s(&env, "VCS"), &2023_u32, &15_0000000_i128);
+        let price = client.get_benchmark_price(&s(&env, "VCS"), &2023_u32);
         assert_eq!(price, 15_0000000_i128);
     }
 
@@ -569,8 +570,7 @@ mod tests {
     fn test_flag_project() {
         let env = Env::default();
         let (client, _, oracle) = setup(&env);
-
-        client.flag_project(&oracle, &s(&env, "proj-001"), &s(&env, "satellite contradiction")).unwrap();
+        client.flag_project(&oracle, &s(&env, "proj-001"), &s(&env, "satellite contradiction"));
         // Verify event was emitted (no error = success)
     }
 
@@ -579,7 +579,6 @@ mod tests {
         let env = Env::default();
         let (client, _, oracle) = setup(&env);
 
-        // Submit monitoring data at timestamp 0
         env.ledger().set(LedgerInfo {
             timestamp: 1_000_000,
             protocol_version: 20,
@@ -598,9 +597,8 @@ mod tests {
             &1000_i128,
             &80_u32,
             &s(&env, "QmCID"),
-        ).unwrap();
+        );
 
-        // Advance time by 366 days
         env.ledger().set(LedgerInfo {
             timestamp: 1_000_000 + (366 * 24 * 60 * 60),
             protocol_version: 20,
@@ -627,7 +625,7 @@ mod tests {
             &1000_i128,
             &80_u32,
             &s(&env, "QmCID"),
-        ).unwrap();
+        );
 
         assert!(client.is_monitoring_current(&s(&env, "proj-001")));
     }
@@ -640,7 +638,7 @@ mod tests {
         let oracle = Address::generate(&env);
         let id     = env.register_contract(None, CarbonOracleContract);
         let client = CarbonOracleContractClient::new(&env, &id);
-        client.initialize(&admin, &oracle).unwrap();
+        client.initialize(&admin, &oracle);
         let result = client.try_initialize(&admin, &oracle);
         assert!(result.is_err());
     }
