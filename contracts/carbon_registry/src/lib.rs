@@ -56,7 +56,7 @@ pub enum ProjectStatus {
 }
 
 #[contracttype]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CarbonProject {
     pub project_id:            String,
     pub name:                  String,
@@ -67,6 +67,7 @@ pub struct CarbonProject {
     pub metadata_cid:          String,
     pub total_credits_issued:  i128,
     pub total_credits_retired: i128,
+    pub methodology_score:     u32,
     pub status:                ProjectStatus,
     pub vintage_year:          u32,
     pub created_at:            u64,
@@ -116,6 +117,7 @@ impl CarbonRegistryContract {
         methodology: String,
         country: String,
         project_type: String,
+        methodology_score: u32,
         vintage_year: u32,
     ) -> Result<(), CarbonError> {
         // ── checks ────────────────────────────────────────────────────────────
@@ -146,6 +148,10 @@ impl CarbonRegistryContract {
             return Err(CarbonError::InvalidVintageYear);
         }
 
+        if methodology_score < 70 {
+            return Err(CarbonError::InvalidVintageYear);
+        }
+
         if env.storage().persistent().has(&DataKey::Project(project_id.clone())) {
             return Err(CarbonError::ProjectAlreadyExists);
         }
@@ -161,6 +167,7 @@ impl CarbonRegistryContract {
             metadata_cid:          metadata_cid.clone(),
             total_credits_issued:  0,
             total_credits_retired: 0,
+            methodology_score,
             status:                ProjectStatus::Pending,
             vintage_year,
             created_at:            env.ledger().timestamp(),
@@ -169,7 +176,7 @@ impl CarbonRegistryContract {
 
         env.events().publish(
             (symbol_short!("c_ledger"), symbol_short!("reg_proj")),
-            (project_id, methodology, country, vintage_year),
+            (project_id, methodology, country, vintage_year, methodology_score),
         );
         Ok(())
     }

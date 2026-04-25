@@ -18,6 +18,7 @@ model CarbonProject {
   projectType         String
   status              String   @default("Pending")
   vintageYear         Int
+  methodologyScore    Int
   totalCreditsIssued  Int      @default(0)
   totalCreditsRetired Int      @default(0)
   metadataCid         String

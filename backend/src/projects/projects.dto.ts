@@ -11,6 +11,7 @@ export class RegisterProjectDto {
   @IsString() verifierAddress: string;
   @IsString() ownerAddress: string;
   @IsInt() @Min(1990) @Max(2027) @Type(() => Number) vintageYear: number;
+  @IsInt() @Min(70) @Max(100) @Type(() => Number) methodologyScore: number;
 }
 
 export class UpdateProjectStatusDto {
