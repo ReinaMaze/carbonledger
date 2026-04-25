@@ -1,5 +1,20 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable, NotFoundException, BadRequestException } from "@nestjs/common";
 import { PrismaService } from "../prisma.service";
+import * as PDFDocument from "pdfkit";
+import { Parser } from "json2csv";
+
+export interface RetirementExportFilters {
+  methodology?: string;
+  country?: string;
+  vintageYear?: number;
+  startDate?: string;
+  endDate?: string;
+  beneficiary?: string;
+  minAmount?: number;
+  maxAmount?: number;
+  projectId?: string;
+  batchId?: string;
+}
 
 @Injectable()
 export class RetirementsService {
@@ -7,21 +22,147 @@ export class RetirementsService {
 
   async findAll(limit = 20) {
     return this.prisma.retirementRecord.findMany({
+      include: { project: true, batch: true },
       orderBy: { retiredAt: "desc" },
       take: limit,
     });
   }
 
   async findOne(retirementId: string) {
-    const r = await this.prisma.retirementRecord.findUnique({ where: { retirementId } });
+    const r = await this.prisma.retirementRecord.findUnique({
+      where: { retirementId },
+      include: { project: true, batch: true },
+    });
     if (!r) throw new NotFoundException(`Retirement ${retirementId} not found`);
     return r;
   }
 
-  async generatePdf(retirementId: string): Promise<Buffer> {
-    // PDF generation is handled client-side via html2canvas + jsPDF
-    // This endpoint returns the retirement data for server-side rendering
-    const retirement = await this.findOne(retirementId);
-    return Buffer.from(JSON.stringify(retirement));
+  async findAllWithFilters(filters: RetirementExportFilters) {
+    const where: any = {
+      ...(filters.projectId && { projectId: filters.projectId }),
+      ...(filters.batchId && { batchId: filters.batchId }),
+      ...(filters.vintageYear && { vintageYear: filters.vintageYear }),
+      ...(filters.beneficiary && { beneficiary: { contains: filters.beneficiary, mode: "insensitive" } }),
+      ...(filters.minAmount !== undefined && { amount: { gte: filters.minAmount } }),
+      ...(filters.maxAmount !== undefined && { amount: { lte: filters.maxAmount } }),
+      ...(filters.startDate && { retiredAt: { gte: new Date(filters.startDate) } }),
+      ...(filters.endDate && { retiredAt: { lte: new Date(filters.endDate) } }),
+    };
+
+    // Join with project to filter by methodology and country
+    if (filters.methodology || filters.country) {
+      where.project = {};
+      if (filters.methodology) (where.project as any).methodology = filters.methodology;
+      if (filters.country) (where.project as any).country = filters.country;
+    }
+
+    return this.prisma.retirementRecord.findMany({
+      where,
+      include: {
+        project: true,
+        batch: true,
+      },
+      orderBy: { retiredAt: "desc" },
+    });
+  }
+
+  async exportCsv(filters: RetirementExportFilters): Promise<Buffer> {
+    const retirements = await this.findAllWithFilters(filters);
+
+    const fields = [
+      { label: "Retirement ID", value: "retirementId" },
+      { label: "Retirement Date", value: "retiredAt" },
+      { label: "Beneficiary", value: "beneficiary" },
+      { label: "Amount (tonnes)", value: "amount" },
+      { label: "Project ID", value: "projectId" },
+      { label: "Project Name", value: (r: any) => r.project?.name || "" },
+      { label: "Methodology", value: (r: any) => r.project?.methodology || "" },
+      { label: "Country", value: (r: any) => r.project?.country || "" },
+      { label: "Vintage Year", value: "vintageYear" },
+      { label: "Batch ID", value: "batchId" },
+      { label: "Serial Numbers", value: (r: any) => r.serialNumbers?.join(";") || "" },
+      { label: "Transaction Hash", value: "txHash" },
+      { label: "Retirement Reason", value: "retirementReason" },
+    ];
+
+    const parser = new Parser({ fields });
+    const csv = parser.parse(retirements);
+    return Buffer.from(csv);
+  }
+
+  async exportPdf(filters: RetirementExportFilters): Promise<Buffer> {
+    const retirements = await this.findAllWithFilters(filters);
+    const doc = new PDFDocument({ size: "A4", layout: "landscape", margin: 40 });
+
+    const buffers: Buffer[] = [];
+    doc.on("data", buffers.push.bind(buffers));
+    doc.on("end", () => {});
+
+    // Title page
+    doc
+      .fontSize(22)
+      .text("ESG Carbon Retirement Report", { align: "center" })
+      .moveDown();
+
+    const totalTonnes = retirements.reduce((sum, r) => sum + r.amount, 0);
+
+    doc.fontSize(12).text(`Total Retirements: ${retirements.length}`, { align: "center" });
+    doc
+      .text(`Total Tonnes Retired: ${totalTonnes.toLocaleString()}`, { align: "center" })
+      .moveDown(2);
+
+    if (filters.startDate || filters.endDate) {
+      const dateRange = `${filters.startDate || "all"} to ${filters.endDate || "all"}`;
+      doc.text(`Date Range: ${dateRange}`, { align: "center" });
+    }
+
+    doc
+      .moveDown()
+      .fontSize(10)
+      .text("All data is traceable to on-chain Stellar transaction hashes.", {
+        align: "center",
+      })
+      .text("Generated by CarbonLedger", { align: "center" })
+      .moveDown(2);
+
+    retirements.forEach((retirement, index) => {
+      if (index > 0) doc.addPage();
+
+      const explorerUrl = `https://stellar.expert/explorer/public/tx/${retirement.txHash}`;
+
+      doc
+        .fontSize(14)
+        .text(`Retirement ID: ${retirement.retirementId}`, { continued: true })
+        .fillColor("#666")
+        .text(` | Date: ${new Date(retirement.retiredAt).toLocaleDateString()}`, { fillColor: "black" })
+        .moveDown(1.5);
+
+      doc
+        .fontSize(12)
+        .text(`Beneficiary: ${retirement.beneficiary}`)
+        .text(`Project: ${retirement.project?.name || retirement.projectId}`)
+        .text(`Amount: ${retirement.amount.toLocaleString()} tonnes`)
+        .text(`Methodology: ${retirement.project?.methodology || "N/A"}`)
+        .text(`Country: ${retirement.project?.country || "N/A"}`)
+        .text(`Vintage Year: ${retirement.vintageYear}`)
+        .text(`Batch ID: ${retirement.batchId}`)
+        .text(`Serial Numbers: ${retirement.serialNumbers.join(", ")}`)
+        .text(`Retirement Reason: ${retirement.retirementReason}`)
+        .moveDown(1);
+
+      // Transaction hash with explorer URL
+      doc
+        .fontSize(9)
+        .fillColor("#0066cc")
+        .text(`Stellar Explorer: ${explorerUrl}`, { link: explorerUrl })
+        .fillColor("black");
+    });
+
+    doc.end();
+    return Buffer.concat(buffers);
+  }
+
+  generatePdf(retirementId: string): Promise<Buffer> {
+    return this.findOne(retirementId).then(() => Buffer.from("Deprecated"));
   }
 }

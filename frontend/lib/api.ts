@@ -54,7 +54,7 @@ export interface RetirementRecord {
   retirementId: string;
   batchId: string;
   projectId: string;
-  projectName: string;
+  projectName?: string;
   amount: number;
   retiredBy: string;
   beneficiary: string;
@@ -63,6 +63,15 @@ export interface RetirementRecord {
   serialNumbers: string[];
   retiredAt: string;
   txHash: string;
+  project?: {
+    name: string;
+    methodology: string;
+    country: string;
+  } | null;
+  batch?: {
+    batchId: string;
+    status: string;
+  } | null;
 }
 
 export interface OracleStatus {
@@ -182,5 +191,38 @@ export async function generateCertificatePdf(retirementId: string): Promise<Blob
     body: JSON.stringify({ retirementId }),
   });
   if (!res.ok) throw new Error("PDF generation failed");
+  return res.blob();
+}
+
+export interface EsgExportFilters {
+  methodology?: string;
+  country?: string;
+  vintageYear?: number;
+  startDate?: string;
+  endDate?: string;
+  beneficiary?: string;
+  minAmount?: number;
+  maxAmount?: number;
+  projectId?: string;
+  batchId?: string;
+}
+
+export async function exportEsgCsv(filters: EsgExportFilters): Promise<Blob> {
+  const query = new URLSearchParams();
+  Object.entries(filters).forEach(([k, v]) => v !== undefined && query.set(k, String(v)));
+  const res = await fetch(`${API_URL}/retirements/export/csv?${query}`, {
+    headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+  });
+  if (!res.ok) throw new Error("CSV export failed");
+  return res.blob();
+}
+
+export async function exportEsgPdf(filters: EsgExportFilters): Promise<Blob> {
+  const query = new URLSearchParams();
+  Object.entries(filters).forEach(([k, v]) => v !== undefined && query.set(k, String(v)));
+  const res = await fetch(`${API_URL}/retirements/export/pdf?${query}`, {
+    headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+  });
+  if (!res.ok) throw new Error("PDF export failed");
   return res.blob();
 }
