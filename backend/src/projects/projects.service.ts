@@ -99,6 +99,7 @@ export class ProjectsService {
           metadataCid: true,
           verifierAddress: true,
           ownerAddress: true,
+          methodologyScore: true,
           coordinates: true,
           lastMonitoringAt: true,
           createdAt: true,
@@ -134,6 +135,11 @@ export class ProjectsService {
   async register(dto: RegisterProjectDto) {
     const existing = await this.prisma.carbonProject.findUnique({ where: { projectId: dto.projectId } });
     if (existing) throw new ConflictException(`Project ${dto.projectId} already exists`);
+    
+    if (dto.methodologyScore < 70) {
+      throw new ConflictException(`Methodology score must be at least 70`);
+    }
+
     return this.prisma.carbonProject.create({ data: dto });
   }
 

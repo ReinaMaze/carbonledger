@@ -24,6 +24,7 @@ model CarbonProject {
   metadataCid         String
   verifierAddress     String
   ownerAddress        String
+  methodologyScore    Int      @default(0)
   coordinates         Json?
   lastMonitoringAt    DateTime?
   createdAt           DateTime @default(now())

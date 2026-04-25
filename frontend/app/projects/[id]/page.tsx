@@ -31,7 +31,7 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
     : 0;
 
   const provenanceEvents = [
-    { type: "registered" as const, label: "Project Registered", timestamp: project.createdAt, detail: `${project.methodology} · ${project.country}` },
+    { type: "registered" as const, label: "Project Registered", timestamp: project.createdAt, detail: `${project.methodology} · ${project.country} · Score: ${project.methodologyScore}` },
     ...(project.status !== "Pending" ? [{ type: "verified" as const, label: "Project Verified", timestamp: project.createdAt, detail: "Independently verified by accredited verifier" }] : []),
     ...(project.totalCreditsIssued > 0 ? [{ type: "minted" as const, label: "Credits Issued", timestamp: project.createdAt, detail: `${formatTonnes(project.totalCreditsIssued)} issued with unique serial numbers` }] : []),
   ];
@@ -48,9 +48,26 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
             <h1 style={{ fontSize: "2rem", fontWeight: 800, color: colors.neutral[900], margin: "0 0 0.5rem" }}>
               {project.name}
             </h1>
-            <p style={{ color: colors.neutral[500], margin: 0 }}>
-              {project.methodology} · {project.projectType} · {project.country} · {project.vintageYear} Vintage
-            </p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginTop: "1rem" }}>
+              <div>
+                <p style={{ fontSize: "0.75rem", color: colors.neutral[500], margin: "0 0 0.25rem", textTransform: "uppercase" }}>Methodology</p>
+                <p style={{ fontSize: "0.9rem", fontWeight: 600, color: colors.neutral[900], margin: 0 }}>{project.methodology}</p>
+              </div>
+              <div>
+                <p style={{ fontSize: "0.75rem", color: colors.neutral[500], margin: "0 0 0.25rem", textTransform: "uppercase" }}>Methodology Score</p>
+                <p style={{ fontSize: "0.9rem", fontWeight: 600, color: project.methodologyScore >= 85 ? colors.primary[600] : colors.neutral[900], margin: 0 }}>
+                  {project.methodologyScore}/100
+                </p>
+              </div>
+              <div>
+                <p style={{ fontSize: "0.75rem", color: colors.neutral[500], margin: "0 0 0.25rem", textTransform: "uppercase" }}>Vintage Year</p>
+                <p style={{ fontSize: "0.9rem", fontWeight: 600, color: colors.neutral[900], margin: 0 }}>{project.vintageYear}</p>
+              </div>
+              <div>
+                <p style={{ fontSize: "0.75rem", color: colors.neutral[500], margin: "0 0 0.25rem", textTransform: "uppercase" }}>Location</p>
+                <p style={{ fontSize: "0.9rem", fontWeight: 600, color: colors.neutral[900], margin: 0 }}>{project.country}</p>
+              </div>
+            </div>
           </div>
           <span style={{
             background: badge.bg, color: badge.text, border: `1px solid ${badge.border}`,

@@ -31,6 +31,7 @@ pub enum CarbonError {
     ProjectAlreadyExists  = 17,
     InvalidSerialRange    = 18,
     AlreadyInitialized    = 19,
+    MethodologyScoreLow   = 20,
 }
 
 // ── Storage Keys ──────────────────────────────────────────────────────────────
@@ -71,6 +72,7 @@ pub struct CarbonProject {
     pub status:                ProjectStatus,
     pub vintage_year:          u32,
     pub created_at:            u64,
+    pub methodology_score:     u32,
 }
 
 // ── Contract ──────────────────────────────────────────────────────────────────
@@ -105,6 +107,7 @@ impl CarbonRegistryContract {
     /// # Errors
     /// - [`CarbonError::ProjectAlreadyExists`] if `project_id` is already registered.
     /// - [`CarbonError::InvalidVintageYear`] if `vintage_year` is before 2000 or after 2100.
+    /// - [`CarbonError::MethodologyScoreLow`] if `methodology_score` is less than 70.
     pub fn register_project(
         env: Env,
         admin: Address,
@@ -116,6 +119,7 @@ impl CarbonRegistryContract {
         country: String,
         project_type: String,
         vintage_year: u32,
+        methodology_score: u32,
     ) -> Result<(), CarbonError> {
         // ── checks ────────────────────────────────────────────────────────────
         admin.require_auth();
@@ -126,6 +130,9 @@ impl CarbonRegistryContract {
         }
         if vintage_year < 2000 || vintage_year > 2100 {
             return Err(CarbonError::InvalidVintageYear);
+        }
+        if methodology_score < 70 {
+            return Err(CarbonError::MethodologyScoreLow);
         }
 
         // ── effects ───────────────────────────────────────────────────────────
@@ -142,12 +149,13 @@ impl CarbonRegistryContract {
             status:                ProjectStatus::Pending,
             vintage_year,
             created_at:            env.ledger().timestamp(),
+            methodology_score,
         };
         env.storage().persistent().set(&DataKey::Project(project_id.clone()), &project);
 
         env.events().publish(
             (symbol_short!("c_ledger"), symbol_short!("reg_proj")),
-            (project_id, methodology, country, vintage_year),
+            (project_id, methodology, country, vintage_year, methodology_score),
         );
         Ok(())
     }
@@ -374,6 +382,7 @@ mod tests {
             &make_str(env, "Brazil"),
             &make_str(env, "forestry"),
             &2023_u32,
+            &75_u32,
         ).unwrap();
     }
 
@@ -408,6 +417,7 @@ mod tests {
             &make_str(&env, "Brazil"),
             &make_str(&env, "forestry"),
             &2023_u32,
+            &75_u32,
         );
         assert!(result.is_err());
     }
@@ -489,6 +499,52 @@ mod tests {
         assert_eq!(p.project_id, make_str(&env, "proj-001"));
         assert_eq!(p.country, make_str(&env, "Brazil"));
         assert_eq!(p.total_credits_issued, 0);
+    }
+
+    #[test]
+    fn test_register_score_too_low_fails() {
+        let (env, admin, oracle, verifier) = setup();
+        let contract_id = env.register_contract(None, CarbonRegistryContract);
+        let client = CarbonRegistryContractClient::new(&env, &contract_id);
+        client.initialize(&admin, &oracle, &vec![&env, verifier.clone()]).unwrap();
+
+        let result = client.try_register_project(
+            &admin,
+            &make_str(&env, "proj-low"),
+            &make_str(&env, "Low Score"),
+            &make_str(&env, "cid"),
+            &Address::generate(&env),
+            &make_str(&env, "VCS"),
+            &make_str(&env, "Brazil"),
+            &make_str(&env, "forestry"),
+            &2023_u32,
+            &69_u32,
+        );
+        assert_eq!(result, Err(Ok(CarbonError::MethodologyScoreLow)));
+    }
+
+    #[test]
+    fn test_register_score_minimum_succeeds() {
+        let (env, admin, oracle, verifier) = setup();
+        let contract_id = env.register_contract(None, CarbonRegistryContract);
+        let client = CarbonRegistryContractClient::new(&env, &contract_id);
+        client.initialize(&admin, &oracle, &vec![&env, verifier.clone()]).unwrap();
+
+        client.register_project(
+            &admin,
+            &make_str(&env, "proj-min"),
+            &make_str(&env, "Min Score"),
+            &make_str(&env, "cid"),
+            &Address::generate(&env),
+            &make_str(&env, "VCS"),
+            &make_str(&env, "Brazil"),
+            &make_str(&env, "forestry"),
+            &2023_u32,
+            &70_u32,
+        ).unwrap();
+
+        let p = client.get_project(&make_str(&env, "proj-min")).unwrap();
+        assert_eq!(p.methodology_score, 70);
     }
 
     #[test]
