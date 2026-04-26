@@ -38,7 +38,10 @@ export class RetirementsService {
   }
 
   async findOne(retirementId: string) {
-    const r = await this.prisma.retirementRecord.findUnique({ where: { retirementId } });
+    const r = await this.prisma.retirementRecord.findUnique({
+      where: { retirementId },
+      include: { project: true, batch: true },
+    });
     if (!r) throw new NotFoundException(`Retirement ${retirementId} not found`);
     return r;
   }

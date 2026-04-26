@@ -164,7 +164,9 @@ impl CarbonMarketplaceContract {
     ///
     /// # Errors
     /// - [`CarbonError::ZeroAmountNotAllowed`] if `amount` or `price_per_credit_usdc` is zero.
-    /// - [`CarbonError::ProjectSuspended`] if the project is suspended.
+    /// - [`CarbonError::InvalidVintageYear`] if `vintage_year` is before 1990 or after current year + 1.
+    /// - [`CarbonError::InvalidSerialRange`] if `amount` is negative or zero.
+    /// - [`CarbonError::ProjectNotFound`] if any string input is empty or too long.
     pub fn list_credits(
         env: Env,
         seller: Address,
