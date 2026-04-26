@@ -53,11 +53,16 @@ model CreditBatch {
   serialEnd   String
   status      String   @default("Active")
   metadataCid String
-  issuedAt    DateTime @default(now())
+  issuedAt    DateTime @default(now()) @db.Timestamptz
 
   project     CarbonProject      @relation(fields: [projectId], references: [projectId])
   retirements RetirementRecord[]
   listings    MarketListing[]
+
+  @@index([serialStart])
+  @@index([serialEnd])
+  @@index([projectId])
+  @@index([status])
 }
 
 model RetirementRecord {
@@ -70,12 +75,32 @@ model RetirementRecord {
   beneficiary      String
   retirementReason String
   vintageYear      Int
+  serialStart      String
+  serialEnd        String
   serialNumbers    String[]
   txHash           String
-  retiredAt        DateTime @default(now())
+  retiredAt        DateTime @default(now()) @db.Timestamptz
 
-  batch   CreditBatch   @relation(fields: [batchId], references: [batchId])
-  project CarbonProject @relation(fields: [projectId], references: [projectId])
+  batch       CreditBatch   @relation(fields: [batchId], references: [batchId])
+  project     CarbonProject @relation(fields: [projectId], references: [projectId])
+  certificate Certificate?
+
+  @@index([retirementId])
+  @@index([projectId])
+  @@index([retiredBy])
+  @@index([retiredAt])
+}
+
+model Certificate {
+  id           String   @id @default(cuid())
+  retirementId String   @unique
+  publicUrl    String   @unique
+  ipfsCid      String?
+  issuedAt     DateTime @default(now()) @db.Timestamptz
+
+  retirement RetirementRecord @relation(fields: [retirementId], references: [retirementId])
+
+  @@index([retirementId])
 }
 
 model MarketListing {
