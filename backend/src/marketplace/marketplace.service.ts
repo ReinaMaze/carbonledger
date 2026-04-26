@@ -22,7 +22,10 @@ export class MarketplaceService {
     const [listings, total_count] = await Promise.all([
       this.prisma.marketListing.findMany({
         where,
-        orderBy: { createdAt: "desc" },
+        orderBy: [
+          { vintageYear: "desc" },
+          { createdAt: "desc" },
+        ],
         take: limit + 1,
         cursor: cursor ? { id: cursor } : undefined,
         skip: cursor ? 1 : 0,
