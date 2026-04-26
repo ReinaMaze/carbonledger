@@ -56,43 +56,47 @@ export default function BulkPurchaseCart({ onCheckout }: Props) {
         </p>
       ) : (
         <>
-          {items.map(({ listing, amount }) => (
-            <div key={listing.listingId} style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              padding: "0.75rem 0",
-              borderBottom: `1px solid ${colors.neutral[100]}`,
-            }}>
-              <div>
-                <p style={{ fontWeight: 600, fontSize: "0.875rem", color: colors.neutral[800], margin: 0 }}>
-                  {listing.projectName || listing.projectId}
-                </p>
-                <p style={{ fontSize: "0.75rem", color: colors.neutral[500], margin: "0.1rem 0 0" }}>
-                  {listing.methodology} · {listing.vintageYear} · {amount} tCO₂e
-                </p>
+          {items.map(({ listing, amount }) => {
+            const projectLabel = listing.projectName || listing.projectId;
+            return (
+              <div key={listing.listingId} style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "0.75rem 0",
+                borderBottom: `1px solid ${colors.neutral[100]}`,
+              }}>
+                <div>
+                  <p style={{ fontWeight: 600, fontSize: "0.875rem", color: colors.neutral[800], margin: 0 }}>
+                    {projectLabel}
+                  </p>
+                  <p style={{ fontSize: "0.75rem", color: colors.neutral[500], margin: "0.1rem 0 0" }}>
+                    {listing.methodology} · {listing.vintageYear} · {amount} tCO₂e
+                  </p>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                  <span style={{ fontWeight: 700, color: colors.primary[700], fontSize: "0.9rem" }}>
+                    ${formatStroops(BigInt(listing.pricePerCredit) * BigInt(amount))}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removeItem(listing.listingId)}
+                    aria-label={`Remove ${projectLabel} from cart`}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color: colors.neutral[400],
+                      cursor: "pointer",
+                      fontSize: "1rem",
+                      padding: "0.2rem",
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                <span style={{ fontWeight: 700, color: colors.primary[700], fontSize: "0.9rem" }}>
-                  ${formatStroops(BigInt(listing.pricePerCredit) * BigInt(amount))}
-                </span>
-                <button
-                  onClick={() => removeItem(listing.listingId)}
-                  style={{
-                    background: "transparent",
-                    border: "none",
-                    color: colors.neutral[400],
-                    cursor: "pointer",
-                    fontSize: "1rem",
-                    padding: "0.2rem",
-                  }}
-                  aria-label="Remove"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
 
           {/* Totals */}
           <div style={{ marginTop: "1rem", padding: "1rem", background: colors.primary[50], borderRadius: "0.5rem" }}>
@@ -109,6 +113,7 @@ export default function BulkPurchaseCart({ onCheckout }: Props) {
           </div>
 
           <button
+            type="button"
             onClick={() => onCheckout(items)}
             style={{
               background: colors.primary[600],
