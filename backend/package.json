@@ -18,6 +18,16 @@
     "test:db:reset": "dotenv -e .env.test -- prisma migrate reset --force",
     "pretest:e2e": "npm run test:db:up && npm run test:db:migrate"
   },
+  "jest": {
+    "moduleFileExtensions": ["js", "json", "ts"],
+    "rootDir": "src",
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": { "^.+\\.(t|j)s$": "ts-jest" },
+    "setupFiles": ["<rootDir>/jest.setup.ts"],
+    "collectCoverageFrom": ["**/*.(t|j)s"],
+    "coverageDirectory": "../coverage",
+    "testEnvironment": "node"
+  },
   "dependencies": {
     "@nestjs/bullmq": "^11.0.4",
     "@nestjs/common": "^11.1.19",
@@ -40,24 +50,6 @@
     "pdfkit": "^0.18.0",
     "reflect-metadata": "^0.2.0",
     "rxjs": "^7.8.1"
-  },
-  "jest": {
-    "moduleFileExtensions": [
-      "js",
-      "json",
-      "ts"
-    ],
-    "rootDir": "src",
-    "testRegex": ".*\\.spec\\.ts$",
-    "transform": {
-      "^.+\\.(t|j)s$": "ts-jest"
-    },
-    "setupFiles": ["<rootDir>/jest.setup.ts"],
-    "collectCoverageFrom": [
-      "**/*.(t|j)s"
-    ],
-    "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.0.0",
