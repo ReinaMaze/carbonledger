@@ -56,8 +56,8 @@ export class ProjectsController {
 
   @Patch(':id/status')
   @Roles('admin')
-  updateStatus(@Param('id') id: string, @Body() dto: UpdateProjectStatusDto) {
-    return this.projectsService.updateStatus(id, dto);
+  updateStatus(@Param('id') id: string, @Body() dto: UpdateProjectStatusDto, @Request() req: any) {
+    return this.projectsService.updateStatus(id, dto, req.user?.publicKey ?? 'admin');
   }
 
   // ── Verifier actions ─────────────────────────────────────────────────────
