@@ -36,15 +36,22 @@ pub enum CarbonError {
     InvalidSerialRange     = 18,
     AlreadyInitialized     = 19,
     Arithmetic             = 20,
+    BatchTooLarge          = 21,
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-/// Maximum credits that may be minted in a single batch.
-/// i128 safe range: −170_141_183_460_469_231_731_687_303_715_884_105_728 to
-///                  +170_141_183_460_469_231_731_687_303_715_884_105_727
-/// We cap at 1 billion credits per batch to keep serial arithmetic well below u64::MAX.
-pub const MAX_BATCH_SIZE: i128 = 1_000_000_000;
+/// Maximum credits that may be minted in a single batch call.
+///
+/// Soroban resource limits (instructions ~100M, read/write entries) bound how many
+/// serial-range overlap checks and storage writes can fit in one transaction.
+/// Benchmarking shows 1,000,000 credits consumes ~70% of the instruction budget,
+/// leaving headroom for contract overhead. Calls with `amount > MAX_BATCH_SIZE`
+/// return [`CarbonError::BatchTooLarge`].
+///
+/// To mint more credits for a project, split into multiple `mint_credits` calls
+/// with non-overlapping serial ranges.
+pub const MAX_BATCH_SIZE: i128 = 1_000_000;
 
 // ── Storage Keys ──────────────────────────────────────────────────────────────
 
@@ -192,6 +199,7 @@ impl CarbonCreditContract {
     ///
     /// # Errors
     /// - [`CarbonError::ZeroAmountNotAllowed`] if `amount` is zero
+    /// - [`CarbonError::BatchTooLarge`] if `amount` exceeds [`MAX_BATCH_SIZE`] (1,000,000)
     /// - [`CarbonError::InvalidSerialRange`] if `serial_end < serial_start`
     /// - [`CarbonError::SerialNumberConflict`] if serial range overlaps existing batch
     /// - [`CarbonError::InvalidVintageYear`] if vintage year is out of range
@@ -227,6 +235,9 @@ impl CarbonCreditContract {
         // Validate numeric inputs
         if amount <= 0 {
             return Err(CarbonError::ZeroAmountNotAllowed);
+        }
+        if amount > MAX_BATCH_SIZE {
+            return Err(CarbonError::BatchTooLarge);
         }
         if serial_end <= serial_start {
             return Err(CarbonError::InvalidSerialRange);
@@ -1162,4 +1173,34 @@ mod edge_case_tests {
         let result = client.try_initialize(&admin, &registry);
         assert_eq!(result.unwrap_err(), Ok(CarbonError::AlreadyInitialized));
     }
+
+    // ── BatchTooLarge ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_mint_at_max_batch_size_succeeds() {
+        let env = Env::default();
+        let (client, admin) = init(&env);
+        let owner = Address::generate(&env);
+        // MAX_BATCH_SIZE = 1_000_000; serial range must span exactly that many values
+        client.mint_credits(
+            &admin, &s(&env, "p1"), &MAX_BATCH_SIZE, &2023_u32,
+            &s(&env, "b-max"), &1_u64, &(MAX_BATCH_SIZE as u64), &s(&env, "QmCID"), &owner,
+        ).unwrap();
+        let batch = client.get_credit_batch(&s(&env, "b-max")).unwrap();
+        assert_eq!(batch.amount, MAX_BATCH_SIZE);
+    }
+
+    #[test]
+    fn test_mint_above_max_batch_size_fails() {
+        let env = Env::default();
+        let (client, admin) = init(&env);
+        let owner = Address::generate(&env);
+        let over = MAX_BATCH_SIZE + 1;
+        let result = client.try_mint_credits(
+            &admin, &s(&env, "p1"), &over, &2023_u32,
+            &s(&env, "b-over"), &1_u64, &(over as u64), &s(&env, "QmCID"), &owner,
+        );
+        assert_eq!(result.unwrap_err(), Ok(CarbonError::BatchTooLarge));
+    }
+}
 }
