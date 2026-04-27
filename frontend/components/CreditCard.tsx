@@ -20,9 +20,10 @@ export default function CreditCard({ listing, onBuy }: Props) {
   const badge = statusBadge(listing.status);
   const methodColor = methodologyColors[listing.methodology] ?? "#6b7280";
   const priceUSDC = formatStroops(listing.pricePerCredit);
+  const projectLabel = listing.projectName || listing.projectId;
 
   return (
-    <div style={{
+    <article aria-label={`${projectLabel} — ${listing.methodology} ${listing.vintageYear}`} style={{
       background: colors.surface,
       border: `1px solid ${colors.neutral[200]}`,
       borderRadius: "0.75rem",
@@ -40,7 +41,7 @@ export default function CreditCard({ listing, onBuy }: Props) {
             {listing.country} · {listing.vintageYear} Vintage
           </p>
           <h3 style={{ fontSize: "1rem", fontWeight: 600, color: colors.neutral[900], margin: 0 }}>
-            {listing.projectName || listing.projectId}
+            {projectLabel}
           </h3>
         </div>
         <span style={{
@@ -96,6 +97,7 @@ export default function CreditCard({ listing, onBuy }: Props) {
       {onBuy && listing.status === "Active" && (
         <button
           onClick={() => onBuy(listing)}
+          aria-label={`Purchase carbon credits from ${projectLabel}`}
           style={{
             background: colors.primary[600],
             color: "#fff",
@@ -111,6 +113,6 @@ export default function CreditCard({ listing, onBuy }: Props) {
           Purchase Carbon Credits
         </button>
       )}
-    </div>
+    </article>
   );
 }
