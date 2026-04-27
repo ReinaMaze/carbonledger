@@ -50,6 +50,20 @@ jobs:
         working-directory: carbonledger/contracts
         run: cargo test --workspace
 
+      - name: Generate coverage report (llvm-cov)
+        working-directory: carbonledger/contracts
+        run: |
+          cargo install cargo-llvm-cov --locked --quiet 2>/dev/null || true
+          cargo llvm-cov --workspace --lcov --output-path lcov.info
+          cargo llvm-cov report --workspace --summary-only
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: carbonledger/contracts/lcov.info
+          flags: contracts
+          fail_ci_if_error: false
+
       - name: Build WASM artifacts
         working-directory: carbonledger/contracts
         run: cargo build --target wasm32-unknown-unknown --release --workspace
