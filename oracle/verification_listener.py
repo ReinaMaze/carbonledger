@@ -17,8 +17,8 @@ from stellar_sdk import Keypair, Network, SorobanServer, TransactionBuilder, scv
 from stellar_sdk.soroban_rpc import SendTransactionStatus
 
 load_dotenv()
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-log = logging.getLogger(__name__)
+from oracle_logger import get_logger
+log = get_logger("oracle-verification")
 
 # ── Config ────────────────────────────────────────────────────────────────────
 

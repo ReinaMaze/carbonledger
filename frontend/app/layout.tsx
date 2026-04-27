@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import GlobalErrorInit from "./GlobalErrorInit";
 
 export const metadata: Metadata = {
   title: "CarbonLedger — Verified Carbon Credits on Stellar",
@@ -55,6 +56,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </div>
         </nav>
         <main>{children}</main>
+        <GlobalErrorInit />
       </body>
     </html>
   );

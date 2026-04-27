@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { BullModule } from "@nestjs/bullmq";
+import { LoggerModule } from "./logger/logger.module";
 import { AuthModule } from "./auth/auth.module";
 import { ProjectsModule } from "./projects/projects.module";
 import { CreditsModule } from "./credits/credits.module";
@@ -31,6 +32,7 @@ class HealthController {
         password: process.env.REDIS_PASSWORD || undefined,
       },
     }),
+    LoggerModule,
     AuthModule,
     ProjectsModule,
     CreditsModule,

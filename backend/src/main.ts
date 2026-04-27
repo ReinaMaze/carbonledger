@@ -1,16 +1,21 @@
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
+import { NestFactory } from "@nestjs/core";
+import { AppModule } from "./app.module";
+import { LoggerService } from "./logger/logger.service";
+import { LoggingInterceptor } from "./logger/logging.interceptor";
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { bufferLogs: true });
 
-  app.setGlobalPrefix('api/v1');
+  const logger = app.get(LoggerService);
+  app.useLogger(logger);
+  app.useGlobalInterceptors(new LoggingInterceptor(logger));
+
+  app.setGlobalPrefix("api/v1");
   app.enableCors({ origin: process.env.FRONTEND_URL });
 
-  // Health check endpoint — used by Docker and load balancer probes
   const httpAdapter = app.getHttpAdapter();
-  httpAdapter.get('/health', (_req: any, res: any) => {
-    res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+  httpAdapter.get("/health", (_req: any, res: any) => {
+    res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
   });
 
   await app.listen(process.env.PORT ?? 3001);
