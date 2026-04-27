@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { ConsoleLogger, LogLevel } from '@nestjs/common';
+import * as express from 'express';
 import { AppModule } from './app.module';
 
 /**
@@ -33,6 +34,10 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     logger: new JsonLogger(undefined, { logLevels: [logLevel] }),
   });
+
+  const bodyLimit = process.env.BODY_SIZE_LIMIT ?? '10kb';
+  app.use(express.json({ limit: bodyLimit }));
+  app.use(express.urlencoded({ extended: true, limit: bodyLimit }));
 
   app.setGlobalPrefix('api/v1');
 
