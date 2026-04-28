@@ -51,6 +51,7 @@ export default function BuyPage() {
   }
 
   return (
+    <ErrorBoundary>
     <div style={{ maxWidth: "700px", margin: "0 auto", padding: "2.5rem 2rem" }}>
       <a href="/marketplace" style={{ fontSize: "0.875rem", color: colors.primary[600], textDecoration: "none" }}>
         ← Back to Marketplace
@@ -167,5 +168,6 @@ export default function BuyPage() {
 
       <Toast toasts={toasts} onDismiss={dismiss} />
     </div>
+    </ErrorBoundary>
   );
 }
